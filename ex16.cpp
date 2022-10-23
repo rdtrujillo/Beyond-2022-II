@@ -65,9 +65,6 @@ protected:
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
 
-   CGSolver T_solver; // Implicit solver for T = M + dt K
-   DSmoother T_prec;  // Preconditioner for the implicit solver
-
    double alpha, kappa;
 
    mutable Vector z; // auxiliary vector
@@ -295,8 +292,7 @@ int main(int argc, char *argv[])
 
 ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
                                        double kap, const Vector &u)
-   : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
-     T(NULL), current_dt(0.0), z(height)
+   : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),current_dt(0.0), z(height)
 {
    const double rel_tol = 1e-8;
 
@@ -316,13 +312,6 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    alpha = al;
    kappa = kap;
 
-   T_solver.iterative_mode = false;
-   T_solver.SetRelTol(rel_tol);
-   T_solver.SetAbsTol(0.0);
-   T_solver.SetMaxIter(100);
-   T_solver.SetPrintLevel(0);
-   T_solver.SetPreconditioner(T_prec);
-
    SetParameters(u);
 }
 
@@ -334,24 +323,6 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
    M_solver.Mult(z, du_dt);
-}
-
-void ConductionOperator::ImplicitSolve(const double dt,
-                                       const Vector &u, Vector &du_dt)
-{
-   // Solve the equation:
-   //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
-   // for du_dt, where K is linearized by using u from the previous timestep
-   if (!T)
-   {
-      T = Add(1.0, Mmat, dt, Kmat);
-      current_dt = dt;
-      T_solver.SetOperator(*T);
-   }
-   MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
-   Kmat.Mult(u, z);
-   z.Neg();
-   T_solver.Mult(z, du_dt);
 }
 
 void ConductionOperator::SetParameters(const Vector &u)
@@ -377,7 +348,6 @@ void ConductionOperator::SetParameters(const Vector &u)
 
 ConductionOperator::~ConductionOperator()
 {
-   delete T;
    delete M;
    delete K;
 }
