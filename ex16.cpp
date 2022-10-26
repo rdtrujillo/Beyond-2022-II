@@ -59,7 +59,6 @@ protected:
    BilinearForm *K;
 
    SparseMatrix Mmat, Kmat;
-   SparseMatrix *T; // T = M + dt K
    double current_dt;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
@@ -309,8 +308,7 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
 
-   alpha = al;
-   kappa = kap;
+   k;
 
    SetParameters(u);
 }
@@ -331,7 +329,7 @@ void ConductionOperator::SetParameters(const Vector &u)
    u_alpha_gf.SetFromTrueDofs(u);
    for (int i = 0; i < u_alpha_gf.Size(); i++)
    {
-      u_alpha_gf(i) = kappa + alpha*u_alpha_gf(i);
+      u_alpha_gf(i) = k*u_alpha_gf(i);
    }
 
    delete K;
