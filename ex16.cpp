@@ -64,18 +64,18 @@ protected:
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
 
-   double alpha, kappa;
+   double k;
 
    mutable Vector z; // auxiliary vector
 
 public:
-   ConductionOperator(FiniteElementSpace &f, double alpha, double kappa,
+   ConductionOperator(FiniteElementSpace &f, double ka,
                       const Vector &u);
 
    virtual void Mult(const Vector &u, Vector &du_dt) const;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
+   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k){};
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(const Vector &u);
@@ -91,11 +91,10 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = 2;
    int order = 2;
-   int ode_solver_type = 3;
-   double t_final = 0.5;
-   double dt = 1.0e-2;
-   double alpha = 1.0e-2;
-   double kappa = 0.5;
+   int ode_solver_type = 14;
+   double t_final = 10;
+   double dt = 1.0e-1;
+   double k = 2;
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
@@ -117,10 +116,8 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption(&alpha, "-a", "--alpha",
+   args.AddOption(&k, "-k", "--k",
                   "Alpha coefficient.");
-   args.AddOption(&kappa, "-k", "--kappa",
-                  "Kappa coefficient offset.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -194,7 +191,7 @@ int main(int argc, char *argv[])
    u_gf.GetTrueDofs(u);
 
    // 7. Initialize the conduction operator and the visualization.
-   ConductionOperator oper(fespace, alpha, kappa, u);
+   ConductionOperator oper(fespace, k, u);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -289,8 +286,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
-                                       double kap, const Vector &u)
+ConductionOperator::ConductionOperator(FiniteElementSpace &f, double ka, const Vector &u)
    : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),current_dt(0.0), z(height)
 {
    const double rel_tol = 1e-8;
@@ -308,7 +304,7 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
 
-   k;
+   k=ka;
 
    SetParameters(u);
 }
@@ -325,23 +321,15 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 
 void ConductionOperator::SetParameters(const Vector &u)
 {
-   GridFunction u_alpha_gf(&fespace);
-   u_alpha_gf.SetFromTrueDofs(u);
-   for (int i = 0; i < u_alpha_gf.Size(); i++)
-   {
-      u_alpha_gf(i) = k*u_alpha_gf(i);
-   }
-
    delete K;
    K = new BilinearForm(&fespace);
 
-   GridFunctionCoefficient u_coeff(&u_alpha_gf);
-
-   K->AddDomainIntegrator(new DiffusionIntegrator(u_coeff));
+   //GridFunctionCoefficient u_coeff(&u_alpha_gf);
+   ConstantCoefficient sigma(k);
+   
+   K->AddDomainIntegrator(new DiffusionIntegrator(sigma));
    K->Assemble();
    K->FormSystemMatrix(ess_tdof_list, Kmat);
-   delete T;
-   T = NULL; // re-compute T on the next ImplicitSolve
 }
 
 ConductionOperator::~ConductionOperator()
@@ -352,9 +340,13 @@ ConductionOperator::~ConductionOperator()
 
 double InitialTemperature(const Vector &x)
 {
-   if (x.Norml2() < 0.5)
+   Vector t(x.Size());
+   t = 0.0;
+   t.Add(1,x);
+
+   if (t.Norml2() < 1.0)
    {
-      return 2.0;
+      return 0.0;
    }
    else
    {
