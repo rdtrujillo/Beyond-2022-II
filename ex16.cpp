@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
          cout << "step " << ti << ", t = " << t << endl;
 
          u_gf.SetFromTrueDofs(u);
-         if (visualization)
+         if (true)
          {
             sout << "solution\n" << *mesh << u_gf << flush;
          }
