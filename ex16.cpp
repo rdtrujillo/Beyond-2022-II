@@ -89,8 +89,8 @@ double InitialTemperature(const Vector &x);
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
-   int ref_levels = 2;
+   const char *mesh_file = "segment.mesh";
+   int ref_levels = (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
    int order = 2;
    int ode_solver_type = 3;
    double t_final = 0.5;
